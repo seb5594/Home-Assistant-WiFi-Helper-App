@@ -1,0 +1,23 @@
+"use strict";
+// Export the PNG pictures Home Assistant expects from the SVG sources in assets/branding.
+// Needs Playwright with Chromium (npm i playwright). Run from the repository root:
+//   node tools/render_branding.cjs
+const fs = require("node:fs");
+const path = require("node:path");
+const {chromium} = require("playwright");
+
+const JOBS = [["icon.svg", "wifi_helper/icon.png", 256, 256], ["logo.svg", "wifi_helper/logo.png", 560, 200]];
+
+(async () => {
+  const browser = await chromium.launch(process.env.PLAYWRIGHT_CHANNEL ? {channel: process.env.PLAYWRIGHT_CHANNEL} : {});
+  for (const [source, target, width, height] of JOBS) {
+    const svg = fs.readFileSync(path.join("assets/branding", source), "utf8")
+      .replace("<svg ", `<svg width="${width}" height="${height}" `);
+    const page = await browser.newPage({viewport: {width, height}});
+    await page.setContent(`<html><body style="margin:0;background:transparent">${svg}</body></html>`);
+    fs.writeFileSync(target, await page.screenshot({omitBackground: true}));
+    await page.close();
+    console.log(`${source} -> ${target} (${width}x${height})`);
+  }
+  await browser.close();
+})();

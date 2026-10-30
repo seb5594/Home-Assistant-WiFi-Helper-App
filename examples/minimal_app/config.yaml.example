@@ -1,0 +1,18 @@
+name: WiFi Helper example
+version: '0.1.0'
+slug: wifi_example
+arch: [amd64, aarch64]
+startup: application
+boot: manual_only
+init: false
+apparmor: true
+map:
+  - type: share
+    read_only: false
+privileged: [NET_ADMIN]
+options:
+  pairing_token: ''
+  interface: ''
+schema:
+  pairing_token: password
+  interface: str?

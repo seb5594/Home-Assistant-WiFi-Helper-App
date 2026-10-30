@@ -1,0 +1,20 @@
+#include <tunables/global>
+profile wifi_example flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  network,
+  unix,
+  signal (send, receive),
+  capability net_admin,
+  / r,
+  /{bin,sbin,lib,lib64}/** rixm,
+  /usr/{,**} rixm,
+  /opt/{,**} rixm,
+  /etc/{,**} r,
+  /proc/{,**} r,
+  /sys/{,**} r,
+  /data/options.json r,
+  /tmp/{,**} rwk,
+  /run/{,**} rwk,
+  /share/ r,
+  /share/wifi-helper-private/{,**} rwk,
+}

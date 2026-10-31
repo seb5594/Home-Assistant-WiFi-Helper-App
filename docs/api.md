@@ -34,7 +34,7 @@ Authenticate with scope `@inventory`, then send `{"operation":"inventory"}` with
 }
 ```
 
-Additional fields may be added. Treat `eligible` as a snapshot; lease acquisition repeats every check. Inventory remains available while a lease is active or recovery is pending. USB diagnostics distinguish an enumerated USB device from a driver-bound WLAN interface. No-radio startup exits instead of keeping an unusable service alive.
+`helper.addon_slug` optionally reports the helper's validated full Home Assistant app ID (for example `abcdef01_wifi_helper`), derived from its own container hostname. It lets clients link to a helper installed from a different repository. Unknown identity is null; use an App Store link as fallback. Additional fields may be added. Treat `eligible` as a snapshot; lease acquisition repeats every check. Inventory remains available while a lease is active or recovery is pending. USB diagnostics distinguish an enumerated USB device from a driver-bound WLAN interface. No-radio startup exits instead of keeping an unusable service alive.
 
 ## Lease
 

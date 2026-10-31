@@ -196,4 +196,3 @@ class LeaseTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 broker.handover(8, "wlan1", lambda *_: None)
             restore.assert_called_once_with(snapshot, unittest.mock.ANY, wait=2)
-

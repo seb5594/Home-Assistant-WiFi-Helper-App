@@ -142,4 +142,3 @@ class UsbTests(unittest.TestCase):
             self.assertEqual(second["interfaces"], ["wlan1"])
             self.assertEqual(second["drivers"], ["ath9k_htc"])
             self.assertEqual(second["hint"], "")
-

@@ -2,7 +2,7 @@
 
 Home Assistant builds every app straight from its own folder, so everything an app needs
 has to be committed there: its config.yaml, Dockerfile, translations and a copy of the
-code both apps share. Nothing in those files is written by hand. Edit project.json,
+the pinned client SDK. Nothing in those files is written by hand. Edit project.json,
 templates/ or shared/ and run this script; CI runs it with --check and fails on drift.
 """
 import argparse
@@ -53,17 +53,14 @@ def outputs(root=ROOT):
     """Every generated file as {relative path: content}."""
     spec = json.loads((root / "project.json").read_text(encoding="utf-8"))
     files = {}
+    files['sdk/wifi_helper/build_info.json'] = json.dumps({'protocol':spec['protocol'],'version':spec['sdk_version']},indent=2)+'\n'
+    files['sdk/pyproject.toml'] = (root/'templates/sdk.pyproject.toml').read_text().replace('@@SDK_VERSION@@',spec['sdk_version'])
     build_info = {key: spec[key] for key in BUILD_INFO_KEYS if key in spec}
     build_info["repository_url"] = spec["common_config"]["url"]
     for slug, app in spec["apps"].items():
         config, files[f"{slug}/config.yaml"] = render_config(spec, slug, app)
         files[f"{slug}/Dockerfile"] = render_dockerfile(spec, slug, app, root)
         info = dict(build_info)
-        if slug == "tuya_breaker":
-            info.update(cloudcutter_repository=spec["cloudcutter_repository"],
-                        cloudcutter_revision=spec["cloudcutter_revision"],
-                        lightleak_repository=spec["lightleak_repository"],
-                        lightleak_revision=spec["lightleak_revision"])
         files[f"{slug}/app/build_info.json"] = json.dumps(info, indent=2) + "\n"
         for source in sorted((root / "shared").glob("*.py")):
             files[f"{slug}/app/{source.name}"] = render_shared_module(source)

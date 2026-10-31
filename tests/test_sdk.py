@@ -52,3 +52,11 @@ class SdkTests(unittest.TestCase):
         profile=(ROOT/'examples/minimal_app/apparmor.txt').read_text()
         self.assertNotIn('capability sys_admin',profile)
         self.assertIn('/share/wifi-helper-private/',profile)
+
+
+class IdentityTests(unittest.TestCase):
+    def test_only_actual_helper_hostnames_become_deep_links(self):
+        import broker
+        for hostname,expected in [('abcdef01-wifi-helper','abcdef01_wifi_helper'),('local-wifi-helper','local_wifi_helper'),('abcd1234-untuyaos3',None),('untrusted/host',None)]:
+            with patch.object(broker.socket,'gethostname',return_value=hostname):
+                self.assertEqual(broker.addon_slug(),expected)

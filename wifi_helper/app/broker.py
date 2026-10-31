@@ -22,6 +22,12 @@ DATA = Path("/data")
 stopping = threading.Event()
 
 
+def addon_slug():
+    """Advertise only our own validated HA app identity; clients may use a different repository."""
+    match = re.fullmatch(r'([0-9a-f]{8}|local)-wifi-helper',socket.gethostname())
+    return match[1]+'_wifi_helper' if match else None
+
+
 def nm_properties(name, log=None):
     """Read NetworkManager state of a device; refuse anything that is not idle. Returns whether it is managed."""
     path = bus("call", NM, "/org/freedesktop/NetworkManager", NM, "GetDeviceByIpIface", "s", name)
@@ -247,7 +253,7 @@ def main():
                     if request.get("operation") != "inventory" or fds:
                         raise ValueError("Inventory requests must not contain namespace descriptors")
                     result = inventory(validate_host, journal.emit, snapshot if peer else None)
-                    result["helper"] = {"version": APP_VERSION, "protocol": PROTOCOL_VERSION}
+                    result["helper"] = {"version": APP_VERSION, "protocol": PROTOCOL_VERSION, "addon_slug": addon_slug()}
                     result["recovery_pending"] = snapshot.get("recovery_error", "Waiting for radio return") if snapshot and peer is None else ""
                     send(client, result)
                     continue

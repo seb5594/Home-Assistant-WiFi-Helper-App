@@ -92,5 +92,6 @@
       }
     }
   },
-  "helper_socket": "/share/wifi-helper-private/wifi.sock"
+  "helper_socket": "/share/wifi-helper-private/wifi.sock",
+  "sdk_version": "1.0.0"
 }

@@ -2,7 +2,7 @@
 <h1 align="center">WiFi Namespace Helper</h1>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/seb5594/Home-Assistant-WiFi-Helper-App/main/wifi_helper/logo.png" alt="WiFi Namespace Helper" width="360" height="129">
+  <img src="https://raw.githubusercontent.com/seb5594/Home-Assistant-WiFi-Helper-App/dev/wifi_helper/logo.png" alt="WiFi Namespace Helper" width="360" height="129">
 </p>
 
 ---
@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/static/v1?label=privileged&amp;message=NET_ADMIN&amp;color=B45309&amp;style=flat" alt="privileged" height="20"><br>
   <a href="https://github.com/seb5594/Home-Assistant-Apps/stargazers"><img src="https://img.shields.io/github/stars/seb5594/Home-Assistant-WiFi-Helper-App?label=stars&amp;style=flat" alt="stars" height="20"></a>
   <a href="https://github.com/seb5594/Home-Assistant-Apps/issues"><img src="https://img.shields.io/github/issues/seb5594/Home-Assistant-WiFi-Helper-App?label=issues&amp;style=flat" alt="issues" height="20"></a>
-  <a href="https://github.com/seb5594/Home-Assistant-WiFi-Helper-App/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/seb5594/Home-Assistant-WiFi-Helper-App/ci.yml?branch=main&amp;label=checks&amp;style=flat" alt="checks" height="20"></a>
+  <a href="https://github.com/seb5594/Home-Assistant-WiFi-Helper-App/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/seb5594/Home-Assistant-WiFi-Helper-App/ci.yml?branch=dev&amp;label=checks&amp;style=flat" alt="checks" height="20"></a>
   <a href="https://github.com/seb5594/Home-Assistant-Apps#license"><img src="https://img.shields.io/github/license/seb5594/Home-Assistant-WiFi-Helper-App?label=license&amp;style=flat" alt="license" height="20"></a>
 </p>
 <!-- header:end -->

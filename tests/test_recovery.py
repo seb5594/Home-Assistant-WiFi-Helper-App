@@ -107,4 +107,3 @@ class RecoveryTests(unittest.TestCase):
             restore.assert_not_called()
             self.assertTrue((data / "recovery.json").exists())
             self.assertIn("No wireless network interface detected", (data / "logs/app.log").read_text())
-

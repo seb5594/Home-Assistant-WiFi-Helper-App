@@ -1,12 +1,12 @@
-# WiFi Namespace Helper
+# WiFi App Helper
 
 [English](README.md) · **Deutsch**
 
-WiFi Namespace Helper übergibt genau einen unbenutzten, AP-fähigen WLAN-Adapter an den isolierten Netzwerk-Namespace einer Home-Assistant-App und stellt danach den ursprünglichen Host-Zustand wieder her. Er ist unabhängig von Tuya und kann von anderen vertrauenswürdigen Apps verwendet werden.
+WiFi App Helper übergibt genau einen unbenutzten, AP-fähigen WLAN-Adapter an den isolierten Netzwerk-Namespace einer Home-Assistant-App und stellt danach den ursprünglichen Host-Zustand wieder her. Er ist unabhängig von Tuya und kann von anderen vertrauenswürdigen Apps verwendet werden.
 
 ## Installation und Nutzung
 
-1. Im [Home-Assistant-App-Katalog](https://github.com/seb5594/Home-Assistant-Apps) **WiFi Namespace Helper** und eine kompatible Client-App installieren.
+1. Im [Home-Assistant-App-Katalog](https://github.com/seb5594/Home-Assistant-Apps) **WiFi App Helper** und eine kompatible Client-App installieren.
 2. In beiden Konfigurationsseiten dasselbe private Kopplungsgeheimnis mit mindestens 32 Zeichen eintragen. Den Generator der Client-WebUI verwenden, falls vorhanden.
 3. Zuerst den Helper starten. Danach in der Client-WebUI einen freien Adapter auswählen. Eine aktive Verwaltungsverbindung wird nicht übernommen; Home Assistant sollte über Ethernet erreichbar sein.
 4. Eine Sitzung sauber beenden und den Adapter zurückgeben, bevor der Helper beendet wird. Bei ausstehender Wiederherstellung beide Log-Seiten prüfen. Wird beim Start überhaupt keine WLAN-Schnittstelle erkannt, beendet sich der Helper sofort mit Diagnosemeldungen.

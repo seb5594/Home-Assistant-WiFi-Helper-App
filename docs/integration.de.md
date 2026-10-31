@@ -1,4 +1,4 @@
-# WiFi Namespace Helper in eigene Apps integrieren
+# WiFi App Helper in eigene Apps integrieren
 
 [English](integration.en.md) · [API-Spezifikation](api.md)
 

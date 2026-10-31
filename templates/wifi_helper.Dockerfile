@@ -8,7 +8,7 @@ COPY run.sh /run.sh
 RUN chmod 755 /run.sh
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /opt/helper
-LABEL io.hass.name="WiFi Namespace Helper" io.hass.description="Dedicated radio namespace broker" \
+LABEL io.hass.name="WiFi App Helper" io.hass.description="Dedicated radio namespace broker" \
     io.hass.type="addon" io.hass.version="${BUILD_VERSION}" io.hass.arch="${BUILD_ARCH}" \
     org.opencontainers.image.source="https://github.com/seb5594/Home-Assistant-WiFi-Helper-App"
 ENTRYPOINT ["/sbin/tini", "--"]

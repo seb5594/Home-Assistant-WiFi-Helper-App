@@ -1,4 +1,4 @@
-# Integrate WiFi Namespace Helper into your app
+# Integrate WiFi App Helper into your app
 
 [Deutsch](integration.de.md) · [Wire specification](api.md)
 

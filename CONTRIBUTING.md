@@ -1,4 +1,4 @@
-# Contributing to WiFi Namespace Helper
+# Contributing to WiFi App Helper
 
 This is one independent app plus a reusable Python SDK. `project.json` controls the app release, API protocol, independent `sdk_version` and generated build context. SDK packaging metadata is generated from its template too. SDK source lives in `sdk/wifi_helper/`; its public API and wire contract must remain versioned independently of consumers. Owned broker/inventory code lives in `wifi_helper/app/` and local logging in `shared/journal.py`. Run `tools/sync_project.py` after changes and commit generated copies.
 

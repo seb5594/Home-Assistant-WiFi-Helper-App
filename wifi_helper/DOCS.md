@@ -1,4 +1,4 @@
-# WiFi Namespace Helper
+# WiFi App Helper
 
 Reusable local service for Home Assistant apps: lends one unused, AP-capable WLAN PHY to a client's isolated network namespace and restores it afterwards. It has no Web UI, HTTP listener, Docker API or host PID access.
 

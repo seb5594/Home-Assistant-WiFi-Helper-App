@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2
+
+- Update the pinned Home Assistant Python base image to Python 3.14 and regenerate the build context from project.json.
+
 ## 1.0.1
 
 - Rename the app to WiFi App Helper in Home Assistant, container metadata, branding and integration guides.

@@ -1,6 +1,6 @@
 # WiFi App Helper
 
-[English](README.md) · **Deutsch**
+[🇬🇧 English](README.md) · **🇩🇪 Deutsch**
 
 WiFi App Helper übergibt genau einen unbenutzten, AP-fähigen WLAN-Adapter an den isolierten Netzwerk-Namespace einer Home-Assistant-App und stellt danach den ursprünglichen Host-Zustand wieder her. Er ist unabhängig von Tuya und kann von anderen vertrauenswürdigen Apps verwendet werden.
 

@@ -24,7 +24,7 @@
 </p>
 <!-- header:end -->
 
-**English** · [Deutsch](README.de.md)
+**🇬🇧 English** · [🇩🇪 Deutsch](README.de.md)
 
 WiFi App Helper lends one unused, AP-capable Wi-Fi radio to an isolated Home Assistant app, then restores its original host settings. It is independent of Tuya and suitable for other trusted tools that need a dedicated Wi-Fi adapter. Its authenticated local API uses a Unix socket and Linux network namespace descriptors; no TCP/HTTP listener or Docker API is involved.
 

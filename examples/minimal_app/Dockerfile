@@ -1,4 +1,4 @@
-FROM ghcr.io/home-assistant/base-python:3.13-alpine3.24@sha256:c7d34ae22a87275d46deb65bcb0511b389d7bc6eb8dccb28d44dd7cb8616e603
+FROM ghcr.io/seb5594/home-assistant-base-python:3.14-alpine3.24-2026.11.0@sha256:807723c78eeeb57962063875e19b500571a5a6e89423977db6d1123832f1550e
 RUN apk add --no-cache iw=6.17-r0 iproute2=7.0.0-r0
 # Vendor the reviewed SDK into this example app's build context before building.
 COPY vendor/wifi_helper/ /opt/sdk/wifi_helper/

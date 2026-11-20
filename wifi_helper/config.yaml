@@ -4,8 +4,11 @@ version: 1.0.2
 slug: wifi_helper
 url: https://github.com/seb5594/Home-Assistant-WiFi-Helper-App
 arch:
-- amd64
 - aarch64
+- amd64
+- armv7
+- armhf
+- i386
 startup: application
 boot: manual_only
 init: false

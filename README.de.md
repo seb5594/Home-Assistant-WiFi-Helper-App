@@ -7,20 +7,23 @@ WiFi App Helper übergibt genau einen unbenutzten, AP-fähigen WLAN-Adapter an d
 ## Installation und Nutzung
 
 1. Im [Home-Assistant-App-Katalog](https://github.com/seb5594/Home-Assistant-Apps) **WiFi App Helper** und eine kompatible Client-App installieren.
-2. In beiden Konfigurationsseiten dasselbe private Kopplungsgeheimnis mit mindestens 32 Zeichen eintragen. Den Generator der Client-WebUI verwenden, falls vorhanden.
-3. Zuerst den Helper starten. Danach in der Client-WebUI einen freien Adapter auswählen. Eine aktive Verwaltungsverbindung wird nicht übernommen; Home Assistant sollte über Ethernet erreichbar sein.
-4. Eine Sitzung sauber beenden und den Adapter zurückgeben, bevor der Helper beendet wird. Bei ausstehender Wiederherstellung beide Log-Seiten prüfen. Wird beim Start überhaupt keine WLAN-Schnittstelle erkannt, beendet sich der Helper sofort mit Diagnosemeldungen.
+2. Zuerst den Helper starten. Danach in der Client-WebUI einen freien Adapter auswählen. Die Option *WiFi-App-Helper-Host* der Client-App steht bereits auf `4c7fee11-wifi-helper`; nur bei einer Installation aus einem anderen Repository ändern (z. B. `local-wifi-helper`). Ein Kopplungsgeheimnis gibt es nicht mehr. Eine aktive Verwaltungsverbindung wird nicht übernommen; Home Assistant sollte über Ethernet erreichbar sein.
+3. Eine Sitzung sauber beenden und den Adapter zurückgeben, bevor der Helper beendet wird. Bei ausstehender Wiederherstellung beide Log-Seiten prüfen. Wird beim Start überhaupt keine WLAN-Schnittstelle erkannt, beendet sich der Helper sofort mit Diagnosemeldungen.
 
-Protection mode und AppArmor eingeschaltet lassen. Nur der Helper besitzt Host-Netzwerk, Host-D-Bus und NET_ADMIN. Die Client-App benötigt keinen Host- oder Docker-API-Zugriff. Das Geheimnis verleiht allen Apps, die es kennen, Steuerungsrechte: nur an vertrauenswürdige Apps weitergeben.
+Protection mode und AppArmor eingeschaltet lassen. Nur der Helper besitzt Host-Netzwerk, Host-D-Bus und NET_ADMIN. Die Client-App benötigt keinen Host- oder Docker-API-Zugriff. Steuerungsrechte hat jede App, die den HTTP-Port des Helpers im internen Home-Assistant-Netz erreicht *und* den `share`-Mount besitzt: nur vertrauenswürdige Client-Apps installieren.
+
+## Optional: Datenverkehr mit Wireshark ansehen
+
+Ein ausgeliehener Adapter liegt im Namespace der Client-App, deshalb zeichnet die Client-App ihren Verkehr selbst auf (SDK-Modul `wifi_helper.capture`, keine zusätzlichen Pakete). Der Helper stellt die Dateien bereit und wertet sie mit `tshark` aus; so lassen sie sich live oder nachträglich in Wireshark auf einem Windows-PC öffnen. In der Helper-Konfiguration *Paketmitschnitt* und ein *Capture-Token* setzen. Einzelheiten und ein fertiges PowerShell-Skript stehen in der [Wireshark-Anleitung](docs/wireshark.de.md). Die Funktion ist standardmäßig aus; `tshark` vergrößert das Image um etwa 30 MiB.
 
 ## Für Entwickler
 
 Die [deutsche Integrationsanleitung](docs/integration.de.md) enthält ein vollständiges Beispiel, Konfigurations-, Dockerfile- und AppArmor-Vorlagen, Lebenszyklus, Fehlerbehandlung und Tests. Zusätzlich gibt es die [englische Anleitung](docs/integration.en.md), die [API-Spezifikation](docs/api.md) und das [Python-SDK](sdk/).
 
-Helper und Clients werden unabhängig versioniert. Entscheidend ist API-Protokoll **3**, nicht dieselbe App-Versionsnummer. Ein Client wird mit einer geprüften SDK-Revision ausgeliefert und benötigt beim Bauen keine andere App-Repository.
+Helper und Clients werden unabhängig versioniert. Entscheidend ist API-Protokoll **4**, nicht dieselbe App-Versionsnummer. Ein Client wird mit einer geprüften SDK-Revision ausgeliefert und benötigt beim Bauen keine andere App-Repository.
 
 ## Umzug vom Anti Tuya WiFi Helper
 
-Der alte Helper hatte die Kennung `untuyaos3_wifi`, der neue heißt technisch `wifi_helper`. Auch das private Socket-Verzeichnis ist jetzt allgemein benannt. Alte Sitzungen vollständig beenden und im alten Helper die erfolgreiche Adapter-Rückgabe prüfen. Erst danach den neuen Helper installieren und das privat gesicherte Kopplungsgeheimnis übernehmen. Client-App auf den neuen Stand aktualisieren bzw. neu erstellen. Beide Helper nicht gleichzeitig verwenden. Den alten Helper erst entfernen, wenn keine Wiederherstellung mehr aussteht und der neue funktioniert.
+Der alte Helper hatte die Kennung `untuyaos3_wifi`, der neue heißt technisch `wifi_helper`. Auch das private Socket-Verzeichnis ist jetzt allgemein benannt. Alte Sitzungen vollständig beenden und im alten Helper die erfolgreiche Adapter-Rückgabe prüfen. Erst danach den neuen Helper installieren und starten. Das alte Kopplungsgeheimnis wird nicht mehr benötigt. Client-App auf den neuen Stand aktualisieren bzw. neu erstellen. Beide Helper nicht gleichzeitig verwenden. Den alten Helper erst entfernen, wenn keine Wiederherstellung mehr aussteht und der neue funktioniert.
 
 Alle Schritte für Endnutzer laufen über die Home-Assistant-Oberfläche. Es sind keine Host-Befehle und keine deaktivierten Schutzmechanismen erforderlich. Ein USB-Gerät ohne WLAN-Schnittstelle deutet auf einen fehlenden oder ungeeigneten HAOS-Treiber bzw. Firmware hin; der Helper lädt keine Kernelmodule nach.

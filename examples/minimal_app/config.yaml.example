@@ -11,8 +11,8 @@ map:
     read_only: false
 privileged: [NET_ADMIN]
 options:
-  pairing_token: ''
+  wifi_helper_host: 4c7fee11-wifi-helper
   interface: ''
 schema:
-  pairing_token: password
+  wifi_helper_host: str
   interface: str?

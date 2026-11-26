@@ -23,18 +23,17 @@
 
 **🇬🇧 English** · [🇩🇪 Deutsch](README.de.md)
 
-WiFi App Helper lends one unused, AP-capable Wi-Fi radio to an isolated Home Assistant app, then restores its original host settings. It is independent of Tuya and suitable for other trusted tools that need a dedicated Wi-Fi adapter. Its authenticated local API uses a Unix socket and Linux network namespace descriptors; no TCP/HTTP listener or Docker API is involved.
+WiFi App Helper lends one unused, AP-capable Wi-Fi radio to an isolated Home Assistant app, then restores its original host settings. It is independent of Tuya and suitable for other trusted tools that need a dedicated Wi-Fi adapter. Client apps find it by host name over a small HTTP API (`4c7fee11-wifi-helper` for the official repository) and receive the radio through a Unix socket and a Linux network namespace descriptor; no Docker API is involved.
 
 Install from the [Home Assistant Apps catalog](https://github.com/seb5594/Home-Assistant-Apps). The host must run Home Assistant OS or another supported Supervisor installation with a working Wi-Fi driver and NetworkManager. Ethernet is recommended for Home Assistant's management connection. If no wireless interface exists at startup, the helper exits immediately with diagnostics.
 
 ## For users
 
 1. Install **WiFi App Helper** and your compatible client app.
-2. In each app's Configuration tab enter the same private pairing secret of at least 32 characters. Use the client Web UI's secret generator if available.
-3. Start the helper, then open the client app and choose an eligible unused adapter. An existing management connection is never taken over.
-4. Stop the client/session before stopping the helper. The client must release the adapter or exit so its isolated namespace is destroyed. Read both apps' Log tabs if recovery remains pending.
+2. Start the helper, then open the client app and choose an eligible unused adapter. The client's *WiFi App Helper host* option already points to `4c7fee11-wifi-helper`; change it only if you installed the helper from another repository (for example `local-wifi-helper`). No pairing secret is needed. An existing management connection is never taken over.
+3. Stop the client/session before stopping the helper. The client must release the adapter or exit so its isolated namespace is destroyed. Read both apps' Log tabs if recovery remains pending.
 
-Keep Protection mode and AppArmor enabled. Only the helper has host network, host D-Bus and NET_ADMIN. Clients retain isolated networking. The secret grants control to every app that knows it: share it only with trusted client apps. This is not a multi-tenant authorization service.
+Keep Protection mode and AppArmor enabled. Only the helper has host network, host D-Bus and NET_ADMIN. Clients retain isolated networking. Control is granted to every app that can reach the helper's HTTP port on Home Assistant's internal network *and* has the `share` mount: install only client apps you trust. This is not a multi-tenant authorization service.
 
 ## For developers
 
@@ -44,18 +43,22 @@ Keep Protection mode and AppArmor enabled. Only the helper has host network, hos
 - [Installable Python SDK](sdk/) and [complete example app](examples/minimal_app/)
 - [Inventory-only example](examples/inventory.py) and [radio-job example](examples/radio_job.py)
 
-SDK 1.0.0 implements **wire protocol 3**. The helper, SDK and client apps have independent release versions. Compatibility is checked by the protocol number, not equality of app version strings. Clients vendor a reviewed SDK revision and record its commit/checksums; building or installing them never requires the UnTuyaOS3 or Tuya Breaker repository.
+SDK 2.0.0 implements **wire protocol 4**. The helper, SDK and client apps have independent release versions. Compatibility is checked by the protocol number, not equality of app version strings. Clients vendor a reviewed SDK revision and record its commit/checksums; building or installing them never requires the UnTuyaOS3 or Tuya Breaker repository.
 
 ## Migration from Anti Tuya WiFi Helper
 
 The old companion's installed slug was `untuyaos3_wifi`. The new independent app uses `wifi_helper` and `/share/wifi-helper-private/wifi.sock`. This is an explicit migration, not a silent rename of an installed app.
 
 1. Finish/cancel active sessions and stop the main apps. In the old helper log verify that the adapter returned and recovery completed. Never remove the old helper while recovery is pending.
-2. Save the pairing secret privately. Install WiFi App Helper from the catalog, enter that secret and start it.
+2. Install WiFi App Helper from the catalog and start it. The old pairing secret is no longer used; remove it from the client apps.
 3. Update/rebuild the client app to its standalone repository version. Its Web UI points to this new helper. Do not run both helpers at once.
 4. Once the new helper and client work, remove the old Anti Tuya helper through Home Assistant. Existing recovery files belong to their originating helper; they are never silently copied or deleted.
 
 All instructions for end users use Home Assistant's UI. No host shell, manual module loading, Docker commands or disabled protection are required. USB enumeration alone does not mean a usable Wi-Fi interface exists; drivers and firmware come from the HAOS kernel, not this container.
+
+## Optional: look at the traffic with Wireshark
+
+A leased radio lives inside the client app, so the client records its own traffic (SDK module `wifi_helper.capture`, no extra packages). The helper can serve these files and analyse them with `tshark`, so you can open them from Wireshark on a Windows PC, live or afterwards. Switch it on in the helper's Configuration (*Packet capture* plus a *Capture token*). Details and a ready-made PowerShell script are in the [Wireshark guide](docs/wireshark.en.md). The feature is off by default and costs nothing while disabled; `tshark` adds roughly 30 MiB to the image.
 
 ## Source and testing
 

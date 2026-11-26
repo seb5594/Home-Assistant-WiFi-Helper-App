@@ -20,7 +20,7 @@ Die [vollständige Beispiel-App](../examples/minimal_app/) erwartet diesen Vendo
 
 Als Vorlage dienen [config.yaml](../examples/minimal_app/config.yaml.example), [Dockerfile](../examples/minimal_app/Dockerfile) und [AppArmor-Profil](../examples/minimal_app/apparmor.txt). Der Client erhält sein eigenes Netzwerk, das private gemeinsame Socket-Verzeichnis und NET_ADMIN zum Bearbeiten und Zurückgeben seines ausgeliehenen Adapters. NET_RAW nur hinzufügen, wenn DHCP, Ping oder Raw-Sockets es tatsächlich benötigen.
 
-Kein Host-Netzwerk, kein Host-D-Bus, keine Host-PID-Namespace, kein SYS_ADMIN, keine Docker-, Supervisor- oder Home-Assistant-API. Der `/share`-Mount wird mit AppArmor auf `/share/wifi-helper-private/` eingeschränkt. Eine reine Inventarabfrage benötigt keine Netzwerk-Capabilities. Die Option `pairing_token` ist ein Passwortfeld; Endnutzer tragen denselben privaten Wert im Helper und im Client ein.
+Kein Host-Netzwerk, kein Host-D-Bus, keine Host-PID-Namespace, kein SYS_ADMIN, keine Docker-, Supervisor- oder Home-Assistant-API. Der `/share`-Mount wird mit AppArmor auf `/share/wifi-helper-private/` eingeschränkt. Eine reine Inventarabfrage benötigt keine Netzwerk-Capabilities. Die Textoption `wifi_helper_host` (Standard `4c7fee11-wifi-helper`, optional `host:port`) nennt den Helper; ein gemeinsames Geheimnis gibt es nicht.
 
 Eine eigene Ingress-Oberfläche muss zusätzlich den echten Ingress-Peer prüfen, Änderungen gegen CSRF schützen und Geheimnisse aus Statusantworten fernhalten. Das Minimalbeispiel hat bewusst keinen HTTP-Server.
 
@@ -29,14 +29,14 @@ Eine eigene Ingress-Oberfläche muss zusätzlich den echten Ingress-Peer prüfen
 ```python
 from wifi_helper import Client
 
-client = Client(secret, lost=fatal_event, log=emit_log)
+client = Client(options['wifi_helper_host'], lost=fatal_event, log=emit_log)
 status = client.inventory()
 eligible = [item for item in status['adapters'] if item['eligible']]
 # Nur bei genau einem geeigneten Adapter automatisch vorauswählen.
 radio = client.acquire(selected_interface)
 ```
 
-`secret` stammt aus den privaten App-Optionen, nicht aus einer URL, einem fest eingebauten Testwert oder dem Browser-Speicher. `fatal_event` ist ein `threading.Event`; `emit_log(level, text, channel)` bindet die eigene strukturierte Protokollierung an. Mehrere geeignete Adapter muss der Nutzer ausdrücklich auswählen. Bei einem Fehler nicht heimlich den nächsten Adapter versuchen.
+Der Host stammt aus den App-Optionen; für das offizielle Repository bleibt der Standard `4c7fee11-wifi-helper`. Es ist ein einfacher Home-Assistant-Hostname, keine URL. `fatal_event` ist ein `threading.Event`; `emit_log(level, text, channel)` bindet die eigene strukturierte Protokollierung an. Mehrere geeignete Adapter muss der Nutzer ausdrücklich auswählen. Bei einem Fehler nicht heimlich den nächsten Adapter versuchen.
 
 Das Inventar ist eine Momentaufnahme. `acquire()` wiederholt die Sicherheitsprüfungen und liefert erst nach erfolgreicher Übergabe einen Handle. `radio.interface`, `phy`, `mac`, `adapter` und `original_power_save` beschreiben den eigenen Adapter. Das SDK übergibt nur einen Descriptor von `/proc/self/ns/net`; es betritt keinen fremden Namespace.
 
@@ -61,12 +61,12 @@ Eine Ingress-App sollte Auswahl, Start, Stop und Rückgabe mit einer gemeinsamen
 
 ## 6. Fehler, Geheimnisse und Logs
 
-`HelperUnavailable`, `SecretNotSet`, `PairingFailed` und `ProtocolMismatch` getrennt behandeln. Ein Authentifizierungsfehler rechtfertigt weder Host-Netzwerk noch mehr Container-Rechte. Adapteridentität, Fortschritt, Heartbeats, Prozess-Endstatus und Cleanup-Ergebnisse protokollieren. Kopplungsgeheimnisse, WLAN-Passwörter, lokale Geräteschlüssel und Flash-Dumps gehören nicht in öffentliche Logs oder URLs.
+`HelperUnavailable`, `HelperRejected` und `ProtocolMismatch` getrennt behandeln (`wifi_helper.helper_state(error)` liefert `unreachable`, `rejected`, `protocol`). Ein nicht erreichbarer Helper rechtfertigt weder Host-Netzwerk noch mehr Container-Rechte. Adapteridentität, Fortschritt, Heartbeats, Prozess-Endstatus und Cleanup-Ergebnisse protokollieren. Kopplungsgeheimnisse, WLAN-Passwörter, lokale Geräteschlüssel und Flash-Dumps gehören nicht in öffentliche Logs oder URLs.
 
-Jeder, der das gemeinsame Kopplungsgeheimnis kennt, ist ein vertrauenswürdiger Steuerungs-Client. Protokoll 3 enthält keine individuellen App-ACLs und ist keine Mandantentrennung. Das Geheimnis nicht beliebigen Erweiterungen oder öffentlichen Proxys geben.
+Jede App mit `share`-Mount, die den Helper per HTTP erreicht, ist ein vertrauenswürdiger Steuerungs-Client. Protokoll 4 enthält keine individuellen App-ACLs und ist keine Mandantentrennung. Keine fremden Apps danebeninstallieren und den HTTP-Port nicht über Proxys öffentlich machen.
 
 ## 7. Tests und Veröffentlichung
 
-Die echten Unix-Socket- und HMAC-Tests des SDK verwenden, Host-Mutationen jedoch mocken. Mindestens falsches Geheimnis, falsche Protokollnummer, unerwartete Deskriptoren, fehlender oder belegter Adapter, mehrere Interfaces auf einem PHY, abgelehnte Übergabe, USB-Abziehen, Lease-EOF, teilweiser Start, Abbruch, fehlgeschlagenes Cleanup und geänderte PHY-Nummer bei der Rückkehr prüfen. Fremde Interfaces, Routen und NetworkManager-Dienste dürfen unverändert bleiben.
+Die echten Unix-Socket- und Loopback-HTTP-Tests des SDK verwenden, Host-Mutationen jedoch mocken. Mindestens nicht erreichbarer Host, abgelaufenes Ticket, falsche Protokollnummer, unerwartete Deskriptoren, fehlender oder belegter Adapter, mehrere Interfaces auf einem PHY, abgelehnte Übergabe, USB-Abziehen, Lease-EOF, teilweiser Start, Abbruch, fehlgeschlagenes Cleanup und geänderte PHY-Nummer bei der Rückkehr prüfen. Fremde Interfaces, Routen und NetworkManager-Dienste dürfen unverändert bleiben.
 
 Softwaretests beweisen kein physisches AP-Verhalten eines Treibers. Hardwaretests separat dokumentieren. Die eigene App wird unabhängig vom Helper versioniert und veröffentlicht. Für alle Endnutzer-Schritte eine Home-Assistant-Oberfläche anbieten; keine Shell-Kommandos voraussetzen.

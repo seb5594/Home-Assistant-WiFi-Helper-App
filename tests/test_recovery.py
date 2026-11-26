@@ -99,7 +99,7 @@ class RecoveryTests(unittest.TestCase):
     def test_no_adapter_exits_immediately_preserving_existing_recovery(self):
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
             data = Path(directory)
-            (data / "options.json").write_text(json.dumps({"pairing_token": "x"*40}))
+            (data / "options.json").write_text(json.dumps({}))
             (data / "recovery.json").write_text(json.dumps(SNAPSHOT))
             with patch.object(broker, "DATA", data), patch.object(broker, "command", return_value=""), \
                  patch.object(broker, "usb_devices", return_value=[]), patch.object(broker, "restore") as restore:

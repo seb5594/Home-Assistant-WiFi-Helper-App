@@ -158,32 +158,28 @@ class LeaseTests(unittest.TestCase):
 
 
     @unittest.skipUnless(sys.platform == "linux", "Linux Unix socket transport")
-    def test_mutual_authentication_and_wrong_secret(self):
-        for correct in (True, False):
-            left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
-            left.settimeout(2)
-            right.settimeout(2)
-            errors = []
-            def helper():
-                try:
-                    protocol.server_authenticate(right, "wlan1", "private-" * 5)
-                except Exception as exc:
-                    errors.append(exc)
-                finally:
-                    right.close()
-            thread = threading.Thread(target=helper)
-            thread.start()
+    def test_descriptors_are_refused_before_the_ticket_is_redeemed(self):
+        left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        left.settimeout(2)
+        right.settimeout(2)
+        errors = []
+        def helper():
             try:
-                if correct:
-                    protocol.client_authenticate(left, "wlan1", "private-" * 5)
-                else:
-                    with self.assertRaises((ValueError, ConnectionError)):
-                        protocol.client_authenticate(left, "wlan1", "incorrect-" * 5)
+                protocol.server_handshake(right, lambda ticket: ("lease", "wlan1"))
+            except Exception as exc:
+                errors.append(exc)
             finally:
-                left.close()
-                thread.join(3)
-            self.assertEqual(bool(errors), not correct)
-
+                right.close()
+        thread = threading.Thread(target=helper)
+        thread.start()
+        try:
+            protocol.receive(left)  # The helper's hello.
+            with tempfile.TemporaryFile() as file:
+                protocol.send(left, {"protocol": protocol.PROTOCOL_VERSION, "ticket": "c" * 64}, file.fileno())
+        finally:
+            left.close()
+            thread.join(3)
+        self.assertTrue(errors and "before the ticket" in str(errors[0]))
 
     def test_failed_handover_restores_host_state(self):
         adapter = wifi.Adapter("wlan1", "phy0", 4)

@@ -11,20 +11,40 @@ import protocol as server_protocol
 from wifi_helper import Client,RadioLease
 
 class SdkTests(unittest.TestCase):
-    def test_public_sdk_authenticates_with_independently_versioned_server(self):
+    def test_public_sdk_redeems_ticket_with_independently_versioned_server(self):
         a,b=socket.socketpair(socket.AF_UNIX,socket.SOCK_SEQPACKET)
         a.settimeout(2);b.settimeout(2)
-        errors=[]
+        errors=[];seen=[]
         def server():
-            try:server_protocol.server_authenticate(b,'@inventory','private-'*8)
+            try:seen.append(server_protocol.server_handshake(b,lambda ticket:('lease','wlan1')))
             except BaseException as exc:errors.append(exc)
             finally:b.close()
         worker=threading.Thread(target=server);worker.start()
         try:
             with patch.object(client_protocol,'APP_VERSION','99.0.0'),patch.object(server_protocol,'APP_VERSION','1.0.0'):
-                client_protocol.client_authenticate(a,'@inventory','private-'*8)
+                client_protocol.client_handshake(a,'a'*64)
         finally:a.close();worker.join(3)
         self.assertEqual(errors,[])
+        self.assertEqual(seen,[('lease','wlan1')])
+
+    def test_rejected_ticket_is_reported_to_the_client(self):
+        a,b=socket.socketpair(socket.AF_UNIX,socket.SOCK_SEQPACKET)
+        a.settimeout(2);b.settimeout(2)
+        def redeem(ticket):raise ValueError('Unknown or expired ticket')
+        def server():
+            try:server_protocol.server_handshake(b,redeem)
+            except ValueError:server_protocol.send(b,{'error':'Unknown or expired ticket'})
+            finally:b.close()
+        worker=threading.Thread(target=server);worker.start()
+        try:
+            with self.assertRaisesRegex(client_protocol.HelperRejected,'expired'):client_protocol.client_handshake(a,'b'*64)
+        finally:a.close();worker.join(3)
+
+    def test_host_option_accepts_name_with_optional_port_and_rejects_garbage(self):
+        self.assertEqual(client_protocol.helper_address({}),('4c7fee11-wifi-helper',4817))
+        self.assertEqual(client_protocol.helper_address({'wifi_helper_host':'local-wifi-helper:9000'}),('local-wifi-helper',9000))
+        for bad in ('http://x','host/path','a b','host:99999','-bad'):
+            with self.assertRaises(ValueError):client_protocol.helper_address({'wifi_helper_host':bad})
 
     def test_release_checks_mac_before_any_cleanup_and_is_idempotent(self):
         active=Mock(interface='wlan1',phy='phy0',mac='02:00:00:00:00:01',power_save='off')
@@ -40,7 +60,7 @@ class SdkTests(unittest.TestCase):
                 cleanup.assert_not_called()
 
     def test_partial_local_acquisition_closes_lease_and_signals_fatal(self):
-        lost=threading.Event();client=Client('private-'*8,lost=lost)
+        lost=threading.Event();client=Client('4c7fee11-wifi-helper',lost=lost)
         with patch.object(sdk,'Lease') as lease,patch.object(sdk,'RadioLease',side_effect=RuntimeError('gone')):
             with self.assertRaises(RuntimeError):client.acquire('wlan1')
             lease.return_value.close.assert_called_once()

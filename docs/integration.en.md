@@ -24,16 +24,16 @@ Start with [config.yaml](../examples/minimal_app/config.yaml.example), [Dockerfi
 - a `/share` mount, narrowed by AppArmor to `/share/wifi-helper-private/`;
 - NET_ADMIN for configuring and returning its leased radio;
 - NET_RAW only if its actual workflow needs DHCP, ping or raw sockets;
-- a password option named `pairing_token` and no Supervisor, Home Assistant or Docker API access.
+- a text option named `wifi_helper_host` (default `4c7fee11-wifi-helper`, optionally `host:port`) and no Supervisor, Home Assistant or Docker API access.
 
-For an inventory-only client remove both capabilities; listing uses local IPC. A client that provides Ingress must validate the real Ingress peer, use CSRF protection for mutations and keep secrets out of status responses. The included example deliberately has no HTTP server.
+For an inventory-only client remove both capabilities; listing uses HTTP to the helper. A client that provides Ingress must validate the real Ingress peer, use CSRF protection for mutations and keep secrets out of status responses. The included example deliberately has no HTTP server.
 
 ## 4. Inventory, selection and acquisition
 
 ```python
 from wifi_helper import Client
 
-client = Client(secret, lost=fatal_event, log=emit_log)
+client = Client(options['wifi_helper_host'], lost=fatal_event, log=emit_log)
 status = client.inventory()
 choices = [item for item in status['adapters'] if item['eligible']]
 # Auto-select only if there is exactly one eligible radio; otherwise ask the user.
@@ -41,7 +41,7 @@ radio = client.acquire(selected_interface)
 # radio.interface, radio.phy, radio.mac, radio.adapter, radio.original_power_save
 ```
 
-`secret` comes from the app's private options, never a URL, browser-local storage or hard-coded example value. `emit_log(level, text, channel)` can connect to your own structured journal. `fatal_event` is a `threading.Event`. The helper rechecks eligibility during acquisition; inventory is not approval. Do not silently try another adapter if acquisition fails.
+The host comes from the app's options; leave the default for the official repository. It is a plain Home Assistant host name, not a URL. `emit_log(level, text, channel)` can connect to your own structured journal. `fatal_event` is a `threading.Event`. The helper rechecks eligibility during acquisition; inventory is not approval. Do not silently try another adapter if acquisition fails.
 
 `acquire()` returns only after the PHY has moved into your container. It transfers a descriptor opened from `/proc/self/ns/net`; neither app enters the other's namespace. Keep the returned handle alive while workers use the radio. The SDK maintains the original lease connection and watches for unexpected EOF.
 
@@ -66,12 +66,12 @@ For an Ingress application, serialize acquire/start/stop/return with one operati
 
 ## 6. Errors and privacy
 
-Handle `HelperUnavailable`, `SecretNotSet`, `PairingFailed` and `ProtocolMismatch` separately. Authentication failures are configuration problems, not permission to enable host networking. User-facing recovery messages should identify the failed stage, not print secrets or device dumps. The pairing secret grants all trusted peers access to this one helper; protocol 3 is not per-app authorization. Do not give it to arbitrary third-party code.
+Handle `HelperUnavailable`, `HelperRejected` and `ProtocolMismatch` separately (`wifi_helper.helper_state(error)` maps them to `unreachable`, `rejected` and `protocol`). An unreachable helper is usually a wrong host name or a stopped helper, never a reason to enable host networking. User-facing recovery messages should identify the failed stage, not print secrets or device dumps. Every app with the `share` mount that can reach the helper is a trusted peer; protocol 4 is not per-app authorization. Do not install arbitrary third-party apps next to it.
 
-Use an explicit user action to export diagnostic files that may contain device data. Log radio identity, progress, heartbeats, child exit status and cleanup results, but keep pairing tokens, Wi-Fi passwords and device keys out of logs and URLs.
+Use an explicit user action to export diagnostic files that may contain device data. Log radio identity, progress, heartbeats, child exit status and cleanup results, but keep Wi-Fi passwords and device keys out of logs and URLs.
 
 ## 7. Tests before publication
 
-Use the SDK's real Unix socket/authentication tests and mock host operations. Test wrong secrets, protocol mismatch, unexpected descriptors, no adapter, busy adapter, two interfaces on one PHY, namespace-move rejection, USB removal, lease EOF, partial startup, cancellation, failed cleanup and return with a changed PHY number. Assert unrelated interfaces/routes/NetworkManager services are untouched. Verify API and permission templates in CI.
+Use the SDK's real Unix socket and loopback HTTP tests and mock host operations. Test an unreachable host, expired tickets, protocol mismatch, unexpected descriptors, no adapter, busy adapter, two interfaces on one PHY, namespace-move rejection, USB removal, lease EOF, partial startup, cancellation, failed cleanup and return with a changed PHY number. Assert unrelated interfaces/routes/NetworkManager services are untouched. Verify API and permission templates in CI.
 
 Software tests do not prove a driver's physical AP behavior. Document your actual hardware checks separately. Use your own app version and release pipeline; neither app needs to share the helper's release number.

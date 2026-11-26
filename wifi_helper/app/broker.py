@@ -1,4 +1,8 @@
-"""Small host-network broker. No HTTP server, shell, Docker socket or host PID access."""
+"""Host-network broker: HTTP front door, private lease socket and radio recovery.
+
+No shell, Docker socket or host PID access.
+"""
+import functools
 import json
 import os
 from pathlib import Path
@@ -12,14 +16,36 @@ import sys
 import threading
 import time
 
+from api import HelperServer, app_network
+from captures import CaptureStore, CaptureUnavailable, validate_settings
 from journal import Journal
-from protocol import (APP_VERSION, INVENTORY, PROTOCOL_VERSION, SOCKET, receive, secure_directory, send,
-                      server_authenticate, validate_options)
+from protocol import (APP_VERSION, CAPTURE_DIR, DEFAULT_PORT, PROTOCOL_VERSION, SOCKET, receive, secure_directory,
+                      send, server_handshake)
 from inventory import adapter_details, inventory, usb_devices
+from tickets import TicketStore
 from wifi import NM, PreflightError, bus, command, inspect, nm_unmanaged, parse_interfaces, radio_unblocked
 
 DATA = Path("/data")
 stopping = threading.Event()
+# Host changes (handover, restore) and inventory reads must not interleave: HTTP requests run in threads.
+HOST_LOCK = threading.RLock()
+
+
+def serialized(function):
+    """Run a host-touching function while holding HOST_LOCK."""
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        with HOST_LOCK:
+            return function(*args, **kwargs)
+    return wrapper
+
+
+class LeaseState:
+    """What the socket loop knows about the current assignment; read by the HTTP inventory."""
+
+    def __init__(self):
+        self.snapshot = None  # Recovery data of the leased (or still unrecovered) radio.
+        self.peer = None      # Open lease connection of the client that holds the radio.
 
 
 def addon_slug():
@@ -87,6 +113,7 @@ def validate_host(name, log):
                      "power_save": power_save, **adapter_details(name)}
 
 
+@serialized
 def restore(snapshot, log, wait=30):
     """Wait for the leased radio to reappear on the host (matched by MAC and device identity) and restore its settings."""
     deadline = time.monotonic() + wait
@@ -148,6 +175,7 @@ def try_restore(snapshot, log):
         return False
 
 
+@serialized
 def handover(fd, interface, log):
     """Move the selected radio into the app's namespace. A recovery record is written first and restored on failure."""
     check_target(fd)
@@ -182,12 +210,123 @@ def handover(fd, interface, log):
         raise
 
 
+def helper_inventory(state, log):
+    """Adapter list for the HTTP API, including the helper's identity and any pending recovery."""
+    with HOST_LOCK:
+        snapshot, peer = state.snapshot, state.peer
+        result = inventory(validate_host, log, snapshot if peer else None)
+    result["helper"] = {"version": APP_VERSION, "protocol": PROTOCOL_VERSION, "addon_slug": addon_slug()}
+    result["recovery_pending"] = snapshot.get("recovery_error", "Waiting for radio return") if snapshot and peer is None else ""
+    return result
+
+
+def start_api(options, state, tickets, journal):
+    """Bind the HTTP server to the Home Assistant app network (or ``listen_address``) and serve in a thread."""
+    network = app_network()
+    host = options.get("listen_address") or str(network.ip)
+    port = int(options.get("http_port") or DEFAULT_PORT)
+    try:
+        token = validate_settings(options)
+    except CaptureUnavailable as exc:
+        journal.emit("error", f"Capture stays disabled: {exc}")
+        token = None
+    if token:
+        Path(CAPTURE_DIR).mkdir(mode=0o700, parents=True, exist_ok=True)
+    server = HelperServer((host, port), network, tickets, lambda: helper_inventory(state, journal.emit),
+                          CaptureStore(), token, journal.emit)
+    threading.Thread(target=server.serve_forever, name="http", daemon=True).start()
+    journal.emit("info", f"HTTP API listening on {host}:{port}; apps connect to this helper by host name "
+                         f"{addon_slug() or 'local'}-wifi-helper:{port}" + ("; packet capture enabled" if token else ""))
+    return server
+
+
+def serve_request(client, state, tickets, journal):
+    """Handle one authenticated socket session. Returns True if the connection became the active lease."""
+    operation, interface = server_handshake(client, tickets.redeem)
+    request, fds = receive(client)
+    try:
+        if request.get("operation") != operation:
+            raise ValueError("Request does not match the ticket")
+        if operation == "return":
+            client.settimeout(15)
+            if fds or state.snapshot is None or state.peer is None or interface != state.snapshot["name"]:
+                raise ValueError("No matching active lease for return")
+            host_fd = os.open("/proc/self/ns/net", os.O_RDONLY)
+            try:
+                send(client, {"event": "return_target", "phy": state.snapshot["phy"]}, host_fd)
+            finally:
+                os.close(host_fd)
+            returned, extra = receive(client)
+            for descriptor in extra:
+                os.close(descriptor)
+            if extra or returned.get("operation") != "returned":
+                raise ValueError("Invalid radio return acknowledgement")
+            state.peer.close()
+            state.peer = None
+            if try_restore(state.snapshot, journal.emit):
+                state.snapshot = None
+                send(client, {"event": "released"})
+            else:
+                send(client, {"error": state.snapshot["recovery_error"], "recovery_pending": True})
+            return False
+        if state.snapshot is not None:
+            raise ValueError("Previous radio recovery is pending. Review helper diagnostics before another assignment")
+        if request.get("interface") != interface:
+            raise ValueError("Ticket interface mismatch")
+        if len(fds) != 1:
+            raise ValueError("Exactly one network namespace descriptor is required")
+
+        def log(level, text):
+            journal.emit(level, text)
+            try:
+                send(client, {"event": "log", "level": level, "text": text})
+            except OSError:
+                pass  # Preserve host recovery even if the client disconnects mid-handover.
+
+        adapter, state.snapshot = handover(fds[0], interface, log)
+        state.peer = client  # From here on the connection belongs to the lease and must stay open.
+        send(client, {"event": "ready", "phy": adapter.phy, "mac": state.snapshot["mac"],
+                      "power_save": state.snapshot["power_save"]})
+        journal.emit("info", "Lease active. Discovery remains available; the radio returns when the main app stops")
+        return True
+    finally:
+        # Do not pin the client's netns: kernel must return its radio on app stop.
+        for fd in fds:
+            os.close(fd)
+
+
+def bind_socket():
+    """Create the private lease socket, refusing to replace a live helper or an unsafe path."""
+    secure_directory()
+    path = Path(SOCKET)
+    if path.exists() or path.is_symlink():
+        info = path.lstat()
+        if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid():
+            raise ValueError("Unsafe IPC socket path")
+        # A live helper must never be replaced by another instance.
+        probe = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        try:
+            probe.connect(SOCKET)
+        except ConnectionRefusedError:
+            path.unlink()
+        else:
+            raise ValueError("Another Wi-Fi Helper already owns the IPC socket")
+        finally:
+            probe.close()
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    server.bind(SOCKET)
+    os.chmod(SOCKET, 0o600)
+    server.listen(4)
+    server.settimeout(1)
+    return server
+
+
 def main():
-    """Run the broker: serve inventory, lease and return requests until stopped."""
+    """Run the broker: serve inventory over HTTP, lease and return requests over the socket until stopped."""
     DATA.mkdir(exist_ok=True)
     journal = Journal(DATA / "logs")
-    snapshot, server, peer = None, None, None
-    socket_owned = False
+    state, tickets = LeaseState(), TicketStore()
+    server, http, socket_owned = None, None, False
     try:
         options = json.loads((DATA / "options.json").read_text())
         available = parse_interfaces(command("iw", "dev"))
@@ -195,124 +334,52 @@ def main():
         if not available:
             journal.emit("error", "USB diagnostics: " + json.dumps(usb_devices()))
             raise PreflightError("No wireless network interface detected. Helper exits immediately. Reconnect the adapter or check its HAOS driver, then start the helper in Home Assistant. Existing recovery metadata is retained")
-        _, token = validate_options(options)
-        journal.emit("info", "Wi-Fi Helper starting; adapter selection is available in the client Web UI; no HTTP listener")
+        journal.emit("info", "Wi-Fi Helper starting; adapter selection is available in the client Web UI")
         if (DATA / "recovery.json").exists():
             journal.emit("warning", "Recovering an interrupted previous assignment")
-            snapshot = json.loads((DATA / "recovery.json").read_text())
-            if try_restore(snapshot, journal.emit):
-                snapshot = None
+            state.snapshot = json.loads((DATA / "recovery.json").read_text())
+            if try_restore(state.snapshot, journal.emit):
+                state.snapshot = None
         journal.emit("info", "Initial inventory: " + json.dumps(inventory(validate_host, journal.emit)))
-        secure_directory()
-        path = Path(SOCKET)
-        if path.exists() or path.is_symlink():
-            info = path.lstat()
-            if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid():
-                raise ValueError("Unsafe IPC socket path")
-            # A live helper must never be replaced by another instance.
-            probe = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
-            try:
-                probe.connect(SOCKET)
-            except ConnectionRefusedError:
-                path.unlink()
-            else:
-                raise ValueError("Another Wi-Fi Helper already owns the IPC socket")
-            finally:
-                probe.close()
-        server = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
-        server.bind(SOCKET)
+        server = bind_socket()
         socket_owned = True
-        os.chmod(SOCKET, 0o600)
-        server.listen(4)
-        server.settimeout(1)
+        http = start_api(options, state, tickets, journal)
         journal.emit("info", "Ready. Start a compatible client app in Home Assistant.")
         next_recovery = 0
         while not stopping.is_set():
-            if snapshot is not None and peer is None and time.monotonic() >= next_recovery:
-                if try_restore(snapshot, journal.emit):
-                    snapshot = None
+            if state.snapshot is not None and state.peer is None and time.monotonic() >= next_recovery:
+                if try_restore(state.snapshot, journal.emit):
+                    state.snapshot = None
                     journal.emit("info", "Radio recovery completed; ready for a new assignment")
                 next_recovery = time.monotonic() + 5
-            readable, _, _ = select.select([server] + ([peer] if peer else []), [], [], 1)
-            if peer and peer in readable:
-                if peer.recv(1):
+            readable, _, _ = select.select([server] + ([state.peer] if state.peer else []), [], [], 1)
+            if state.peer and state.peer in readable:
+                if state.peer.recv(1):
                     raise ValueError("Unexpected data on active lease")
-                peer.close()
-                peer = None
+                state.peer.close()
+                state.peer = None
                 journal.emit("info", "Lease ended; recovering the adapter by device identity")
                 next_recovery = 0
             if server not in readable:
                 continue
             client, _ = server.accept()
             client.settimeout(5)
-            fds = []
             try:
-                interface = server_authenticate(client, None, token)
-                request, fds = receive(client)
-                if interface == INVENTORY:
-                    if request.get("operation") != "inventory" or fds:
-                        raise ValueError("Inventory requests must not contain namespace descriptors")
-                    result = inventory(validate_host, journal.emit, snapshot if peer else None)
-                    result["helper"] = {"version": APP_VERSION, "protocol": PROTOCOL_VERSION, "addon_slug": addon_slug()}
-                    result["recovery_pending"] = snapshot.get("recovery_error", "Waiting for radio return") if snapshot and peer is None else ""
-                    send(client, result)
-                    continue
-                if request.get("operation") == "return":
-                    client.settimeout(15)
-                    if fds or snapshot is None or peer is None or interface != snapshot["name"]:
-                        raise ValueError("No matching active lease for return")
-                    host_fd = os.open("/proc/self/ns/net", os.O_RDONLY)
-                    try:
-                        send(client, {"event": "return_target", "phy": snapshot["phy"]}, host_fd)
-                    finally:
-                        os.close(host_fd)
-                    returned, extra = receive(client)
-                    for descriptor in extra:
-                        os.close(descriptor)
-                    if extra or returned.get("operation") != "returned":
-                        raise ValueError("Invalid radio return acknowledgement")
-                    peer.close()
-                    peer = None
-                    if try_restore(snapshot, journal.emit):
-                        snapshot = None
-                        send(client, {"event": "released"})
-                    else:
-                        send(client, {"error": snapshot["recovery_error"], "recovery_pending": True})
-                    continue
-                if snapshot is not None:
-                    raise ValueError("Previous radio recovery is pending. Review helper diagnostics before another assignment")
-                if request.get("operation") != "lease":
-                    raise ValueError("Unknown helper operation")
-                if request.get("interface") != interface:
-                    raise ValueError("Authenticated interface mismatch")
-                if len(fds) != 1:
-                    raise ValueError("Exactly one network namespace descriptor is required")
-
-                def log(level, text):
-                    journal.emit(level, text)
-                    try:
-                        send(client, {"event": "log", "level": level, "text": text})
-                    except OSError:
-                        pass  # Preserve host recovery even if the client disconnects mid-handover.
-
-                adapter, snapshot = handover(fds[0], interface, log)
-                peer, client = client, None
-                send(peer, {"event": "ready", "phy": adapter.phy, "mac": snapshot["mac"], "power_save": snapshot["power_save"]})
-                journal.emit("info", "Lease active. Discovery remains available; the radio returns when the main app stops")
+                if serve_request(client, state, tickets, journal):
+                    client = None
             except Exception as exc:
+                if state.peer is client:
+                    client = None  # The lease owns the connection even though its announcement failed.
                 journal.emit("error", f"Helper request rejected: {exc}")
-                if snapshot is None and (DATA / "recovery.json").exists():
-                    snapshot = json.loads((DATA / "recovery.json").read_text())
+                if state.snapshot is None and (DATA / "recovery.json").exists():
+                    state.snapshot = json.loads((DATA / "recovery.json").read_text())
                 try:
-                    send(client or peer, {"error": str(exc), "restart_required": snapshot is not None or (DATA / "recovery.json").exists()})
+                    send(client or state.peer, {"error": str(exc), "restart_required": state.snapshot is not None or (DATA / "recovery.json").exists()})
                 except OSError:
                     pass
-                if snapshot is not None and client is None:
+                if state.snapshot is not None and client is None:
                     raise
             finally:
-                # Do not pin the client's netns: kernel must return its radio on app stop.
-                for fd in fds:
-                    os.close(fd)
                 if client:
                     client.close()
     except Exception as exc:
@@ -321,13 +388,16 @@ def main():
     else:
         return_code = 0
     finally:
-        if peer:
-            peer.close()  # Main app notices and shuts down if the helper is stopped first.
+        if http:
+            http.shutdown()
+            http.server_close()
+        if state.peer:
+            state.peer.close()  # Main app notices and shuts down if the helper is stopped first.
         if server:
             server.close()
-        if snapshot:
+        if state.snapshot:
             try:
-                restore(snapshot, journal.emit, wait=2)
+                restore(state.snapshot, journal.emit, wait=2)
             except Exception as exc:
                 journal.emit("critical", f"Radio restoration failed: {exc}")
                 return_code = 1

@@ -1,8 +1,20 @@
 {
   "configuration": {
-    "pairing_token": {
-      "name": "Kopplungsgeheimnis",
-      "description": "In beiden Apps dasselbe private Geheimnis mit mindestens 32 Zeichen eintragen. WLAN wird in der WebUI der Haupt-App ausgewählt."
+    "http_port": {
+      "name": "HTTP-Port",
+      "description": "Port der HTTP-API des Helpers. Client-Apps erreichen ihn über seinen Hostnamen (4c7fee11-wifi-helper beim offiziellen Repository) und brauchen kein Kopplungsgeheimnis."
+    },
+    "listen_address": {
+      "name": "Lauschadresse (optional)",
+      "description": "Leer lassen, damit der Helper nur im internen App-Netz von Home Assistant lauscht. 0.0.0.0 nur setzen, um den Paketmitschnitt im LAN zu öffnen; er ist dann durch das Capture-Token geschützt."
+    },
+    "capture_enabled": {
+      "name": "Paketmitschnitt",
+      "description": "Stellt von Client-Apps aufgezeichnete pcap-Dateien bereit und wertet sie mit tshark aus, z. B. aus Wireshark auf einem Windows-PC. Erfordert ein Capture-Token."
+    },
+    "capture_token": {
+      "name": "Capture-Token",
+      "description": "Passwort für die Capture-Endpunkte, mindestens 16 druckbare Zeichen ohne Leerzeichen. Wird als 'Authorization: Bearer <Token>' gesendet."
     }
   }
 }

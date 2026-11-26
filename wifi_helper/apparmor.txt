@@ -6,6 +6,8 @@ profile wifi_helper flags=(attach_disconnected,mediate_deleted) {
   dbus,
   signal (send, receive),
   capability net_admin,
+  # Only used by the optional capture feature (tshark on host interfaces).
+  capability net_raw,
   / r,
   /run.sh rix,
   /{bin,sbin,lib,lib32,lib64}/** rixm,

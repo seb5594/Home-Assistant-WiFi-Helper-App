@@ -1,6 +1,6 @@
 {
-  "version": "1.0.2",
-  "protocol": 3,
+  "version": "2026.11.26",
+  "protocol": 4,
   "base_image": "ghcr.io/seb5594/home-assistant-base-python:3.14-alpine3.24-2026.11.0",
   "build_packages": [
     "build-base",
@@ -28,12 +28,8 @@
       }
     ]
   },
-  "common_options": {
-    "pairing_token": ""
-  },
-  "common_schema": {
-    "pairing_token": "password"
-  },
+  "common_options": {},
+  "common_schema": {},
   "apps": {
     "wifi_helper": {
       "config": {
@@ -46,39 +42,66 @@
           "NET_ADMIN"
         ]
       },
-      "options": {},
-      "schema": {},
+      "options": {
+        "http_port": 4817,
+        "listen_address": "",
+        "capture_enabled": false,
+        "capture_token": ""
+      },
+      "schema": {
+        "http_port": "port",
+        "listen_address": "str?",
+        "capture_enabled": "bool",
+        "capture_token": "password?"
+      },
       "packages": [
         "iw",
         "iproute2",
         "busctl",
-        "tini"
+        "tini",
+        "tshark"
       ]
     }
   },
   "translations": {
     "en": {
-      "pairing_token": {
-        "name": "Pairing secret",
-        "description": "Enter the same private secret of at least 32 characters in both apps. Select Wi-Fi in the main app's Web UI."
+      "http_port": {
+        "name": "HTTP port",
+        "description": "Port of the helper's HTTP API. Client apps reach it by the helper's host name (4c7fee11-wifi-helper for the official repository) and need no pairing secret."
       },
-      "run_timeout": {
-        "name": "Session timeout",
-        "description": "Maximum session duration in seconds, including menu input and connection attempts (60–7200)."
+      "listen_address": {
+        "name": "Listen address (optional)",
+        "description": "Leave empty to listen only on Home Assistant's internal app network. Use 0.0.0.0 only to open packet capture to your LAN; it is then protected by the capture token."
+      },
+      "capture_enabled": {
+        "name": "Packet capture",
+        "description": "Serve pcap files recorded by client apps and analyse them with tshark, for example from Wireshark on a Windows PC. Requires a capture token."
+      },
+      "capture_token": {
+        "name": "Capture token",
+        "description": "Password for the capture endpoints, at least 16 printable characters without spaces. Sent as 'Authorization: Bearer <token>'."
       }
     },
     "de": {
-      "pairing_token": {
-        "name": "Kopplungsgeheimnis",
-        "description": "In beiden Apps dasselbe private Geheimnis mit mindestens 32 Zeichen eintragen. WLAN wird in der WebUI der Haupt-App ausgewählt."
+      "http_port": {
+        "name": "HTTP-Port",
+        "description": "Port der HTTP-API des Helpers. Client-Apps erreichen ihn über seinen Hostnamen (4c7fee11-wifi-helper beim offiziellen Repository) und brauchen kein Kopplungsgeheimnis."
       },
-      "run_timeout": {
-        "name": "Zeitlimit der Sitzung",
-        "description": "Maximale Sitzungsdauer in Sekunden, einschließlich Menüeingabe und Verbindungsversuchen (60–7200)."
+      "listen_address": {
+        "name": "Lauschadresse (optional)",
+        "description": "Leer lassen, damit der Helper nur im internen App-Netz von Home Assistant lauscht. 0.0.0.0 nur setzen, um den Paketmitschnitt im LAN zu öffnen; er ist dann durch das Capture-Token geschützt."
+      },
+      "capture_enabled": {
+        "name": "Paketmitschnitt",
+        "description": "Stellt von Client-Apps aufgezeichnete pcap-Dateien bereit und wertet sie mit tshark aus, z. B. aus Wireshark auf einem Windows-PC. Erfordert ein Capture-Token."
+      },
+      "capture_token": {
+        "name": "Capture-Token",
+        "description": "Passwort für die Capture-Endpunkte, mindestens 16 druckbare Zeichen ohne Leerzeichen. Wird als 'Authorization: Bearer <Token>' gesendet."
       }
     }
   },
   "helper_socket": "/share/wifi-helper-private/wifi.sock",
-  "sdk_version": "1.0.0",
+  "sdk_version": "2.0.0",
   "apk_version_policy": "repository"
 }

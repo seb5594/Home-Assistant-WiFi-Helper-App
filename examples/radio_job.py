@@ -13,7 +13,7 @@ def main():
     for number in (signal.SIGTERM, signal.SIGINT):
         signal.signal(number, lambda *_: stopped.set())
     options = json.loads(Path('/data/options.json').read_text())
-    client = Client(options['pairing_token'], lost=lost,
+    client = Client(options.get('wifi_helper_host'), lost=lost,
                     log=lambda level, text, channel: print(f'{level} [{channel}] {text}', flush=True))
     eligible = [item for item in client.inventory()['adapters'] if item['eligible']]
     interface = options.get('interface', '')

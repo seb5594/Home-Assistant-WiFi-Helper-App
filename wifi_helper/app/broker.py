@@ -341,9 +341,10 @@ def main():
             if try_restore(state.snapshot, journal.emit):
                 state.snapshot = None
         journal.emit("info", "Initial inventory: " + json.dumps(inventory(validate_host, journal.emit)))
+        # HTTP first: clients treat the appearing socket file as "helper started" and then query the API.
+        http = start_api(options, state, tickets, journal)
         server = bind_socket()
         socket_owned = True
-        http = start_api(options, state, tickets, journal)
         journal.emit("info", "Ready. Start a compatible client app in Home Assistant.")
         next_recovery = 0
         while not stopping.is_set():
